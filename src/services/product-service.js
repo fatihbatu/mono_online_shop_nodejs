@@ -1,6 +1,11 @@
 const { ProductRepository } = require('../database');
 const { FormateData } = require('../utils');
-const { APIError } = require('../utils/app-errors');
+const {
+  APIError,
+  ConflictError,
+  BadRequestError,
+} = require('../utils/app-errors');
+const ErrorHandler = require('../utils/error-handler');
 
 class ProductService {
   constructor() {
@@ -9,17 +14,25 @@ class ProductService {
 
   async CreateProduct(productInputs) {
     try {
+      const isProductExist = await this.repository.FindByName(
+        productInputs.name
+      );
+      if (isProductExist) {
+        throw new ConflictError('Product Already Exist', 409, 'x', true);
+      }
       const productResult = await this.repository.CreateProduct(productInputs);
       return FormateData(productResult);
-    } catch (error) {
+    } catch (err) {
       throw new APIError(
-        'Data Not Found',
-        err.message || 'An error occurred during creating product.'
+        err.name || 'Data Not Found',
+        err.statusCode || undefined,
+        err.description || 'An error occurred during creating product.',
+        err.isOperational || false
       );
     }
   }
 
-  async getProducts() {
+  async GetProducts() {
     try {
       const products = await this.repository.Products();
       let categories = {};
@@ -31,10 +44,12 @@ class ProductService {
         products,
         categories: Object.keys(categories),
       });
-    } catch (error) {
+    } catch (err) {
       throw new APIError(
-        'Data Not Found',
-        err.message || 'An error occurred during getting products.'
+        err.name || 'Data Not Found',
+        err.statusCode || undefined,
+        err.message || 'An error occurred during creating product.',
+        err.isOperational || false
       );
     }
   }
@@ -42,11 +57,16 @@ class ProductService {
   async GetProductDescription(productId) {
     try {
       const product = await this.repository.FindById(productId);
+      if (!product) {
+        throw new BadRequestError();
+      }
       return FormateData(product);
-    } catch (error) {
+    } catch (err) {
       throw new APIError(
-        'Data Not Found',
-        err.message || 'An error occurred during getting product description.'
+        err.name || 'Data Not Found',
+        err.statusCode || undefined,
+        err.message || 'An error occurred during creating product.',
+        err.isOperational || false
       );
     }
   }
@@ -55,11 +75,8 @@ class ProductService {
     try {
       const products = await this.repository.FindByCategory(category);
       return FormateData(products);
-    } catch (error) {
-      throw new APIError(
-        'Data Not Found',
-        err.message || 'An error occurred during getting products by category.'
-      );
+    } catch (err) {
+      throw new APIError('Data Not Found');
     }
   }
 
@@ -67,21 +84,29 @@ class ProductService {
     try {
       const products = await this.repository.FindSelectedProducts(selectedIds);
       return FormateData(products);
-    } catch (error) {
+    } catch (err) {
       throw new APIError(
-        'Data Not Found',
-        err.message || 'An error occurred during getting selected products.'
+        err.name || 'Data Not Found',
+        err.statusCode || undefined,
+        err.message || 'An error occurred during creating product.',
+        err.isOperational || false
       );
     }
   }
 
   async GetProductById(productId) {
     try {
-      return await this.repository.FindById(productId);
-    } catch (error) {
+      const product = await this.repository.FindById(productId);
+      if (!product) {
+        throw new BadRequestError();
+      }
+      return product;
+    } catch (err) {
       throw new APIError(
-        'Data Not Found',
-        err.message || 'An error occurred during getting product by id.'
+        err.name || 'Data Not Found',
+        err.statusCode || undefined,
+        err.message || 'An error occurred during creating product.',
+        err.isOperational || false
       );
     }
   }

@@ -13,8 +13,8 @@ module.exports = (app) => {
     try {
       const { data } = await service.PlaceOrder({ _id, txnNumber });
       return res.status(200).json(data);
-    } catch (error) {
-      next(error);
+    } catch (err) {
+      next(err);
     }
   });
 
@@ -24,8 +24,8 @@ module.exports = (app) => {
     try {
       const { data } = await userService.GetShopingDetails(_id);
       return res.status(200).json(data.orders);
-    } catch (error) {
-      next(error);
+    } catch (err) {
+      next(err);
     }
   });
 
@@ -35,8 +35,8 @@ module.exports = (app) => {
     try {
       const { data } = await userService.GetShopingDetails(_id);
       res.status(200).json(data.cart);
-    } catch (error) {
-      next(error);
+    } catch (err) {
+      next(err);
     }
   });
 };

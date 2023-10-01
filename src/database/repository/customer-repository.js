@@ -1,5 +1,10 @@
-const { APIError } = require('../../utils/app-errors');
 const { CustomerModel, AddressModel } = require('../models');
+const {
+  APIError,
+  BadRequestError,
+  ValidationError,
+  STATUS_CODES,
+} = require('../../utils/app-errors');
 
 class CustomerRepository {
   async CreateCustomer({ email, password, phone, salt }) {
@@ -14,7 +19,7 @@ class CustomerRepository {
       });
       const customerResult = await customer.save();
       return customerResult;
-    } catch (error) {
+    } catch (err) {
       throw new APIError(
         'API Error',
         STATUS_CODES.INTERNAL_ERROR,
@@ -39,7 +44,7 @@ class CustomerRepository {
         profile.address.push(newAddress);
       }
       return await profile.save();
-    } catch (error) {
+    } catch (err) {
       throw new APIError(
         'API Error',
         STATUS_CODES.INTERNAL_ERROR,
@@ -52,7 +57,7 @@ class CustomerRepository {
     try {
       const existingCustomer = await CustomerModel.findOne({ email });
       return existingCustomer;
-    } catch (error) {
+    } catch (err) {
       throw new APIError(
         'API Error',
         STATUS_CODES.INTERNAL_ERROR,
@@ -61,7 +66,7 @@ class CustomerRepository {
     }
   }
 
-  async FindCustomerById({ id }) {
+  async FindCustomerById(id) {
     try {
       const existingCustomer = await CustomerModel.findById(id)
         .populate('address')
@@ -69,7 +74,7 @@ class CustomerRepository {
         .populate('orders')
         .populate('cart.product');
       return existingCustomer;
-    } catch (error) {
+    } catch (err) {
       throw new APIError(
         'API Error',
         STATUS_CODES.INTERNAL_ERROR,
@@ -83,7 +88,8 @@ class CustomerRepository {
       const profile = await CustomerModel.findById(customerId).populate(
         'wishlist'
       );
-    } catch (error) {
+      return profile.wishlist;
+    } catch (err) {
       throw new APIError(
         'API Error',
         STATUS_CODES.INTERNAL_ERROR,
@@ -97,27 +103,6 @@ class CustomerRepository {
       const profile = await CustomerModel.findById(customerId).populate(
         'wishlist'
       );
-
-      // Check is causeing error
-
-      //   if (profile) {
-      //     const index = profile.wishlist.findIndex((item) => {
-      //       return item._id.toString() === product._id.toString();
-      //     });
-      //     if (index !== -1) {
-      //       profile.wishlist.splice(index, 1);
-      //     } else {
-      //       profile.wishlist.push(product);
-      //     }
-      //   }
-
-      if (!profile) {
-        throw new APIError(
-          'API Error',
-          STATUS_CODES.BAD_REQUEST,
-          'Unable to Find Customer'
-        );
-      }
       const index = profile.wishlist.findIndex((item) => {
         return item._id.toString() === product._id.toString();
       });
@@ -128,12 +113,40 @@ class CustomerRepository {
       }
       const profileResult = await profile.save();
       return profileResult.wishlist;
-    } catch (error) {
+    } catch (err) {
       throw new APIError(
         'API Error',
         STATUS_CODES.INTERNAL_ERROR,
         'Unable to Find Wishlist'
       );
+    }
+  }
+
+  async RemoveWishlistItem(customerId, productId) {
+    try {
+      const profile = await CustomerModel.findById(customerId).populate(
+        'wishlist'
+      );
+      const index = profile.wishlist.findIndex((item) => {
+        return item._id.toString() === productId.toString();
+      });
+      if (index !== -1) {
+        profile.wishlist.splice(index, 1);
+      } else {
+        throw new BadRequestError('Product not found in wishlist');
+      }
+      const profileResult = await profile.save();
+      return profileResult.wishlist;
+    } catch (err) {
+      if (err instanceof BadRequestError) {
+        throw err;
+      } else {
+        throw new APIError(
+          'API Error',
+          STATUS_CODES.INTERNAL_ERROR,
+          'Unable to Find Wishlist'
+        );
+      }
     }
   }
 
@@ -169,7 +182,7 @@ class CustomerRepository {
 
       const cartSaveResult = await profile.save();
       return cartSaveResult.cart;
-    } catch (error) {
+    } catch (err) {
       throw new APIError(
         'API Error',
         STATUS_CODES.INTERNAL_ERROR,
@@ -201,7 +214,7 @@ class CustomerRepository {
       const profileResult = await profile.save();
 
       return profileResult.orders;
-    } catch (error) {
+    } catch (err) {
       throw new APIError(
         'API Error',
         STATUS_CODES.INTERNAL_ERROR,

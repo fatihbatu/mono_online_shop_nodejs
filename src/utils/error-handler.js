@@ -1,5 +1,11 @@
 const { createLogger, transports } = require('winston');
-const { AppError } = require('./app-errors');
+const {
+  AppError,
+  APIError,
+  ConflictError,
+  BadRequestError,
+  ValidationError,
+} = require('./app-errors');
 
 const LogErrors = createLogger({
   transports: [
@@ -15,16 +21,21 @@ class ErrorLogger {
     LogErrors.log({
       private: true,
       level: 'error',
-      message: `${new Date()}-${JSON.stringify(err)}`,
+      message: `${new Date()}-${JSON.stringify(err, null, 2)}`,
     });
     console.log('==================== End Error Logger ===============');
-    // log error with Logger plugins
     return false;
   }
 
-  isTrustError(error) {
-    if (error instanceof AppError) {
-      return error.isOperational;
+  isTrustError(err) {
+    if (
+      err instanceof AppError ||
+      err instanceof APIError ||
+      err instanceof ConflictError ||
+      err instanceof BadRequestError ||
+      err instanceof ValidationError
+    ) {
+      return err.isOperational;
     } else {
       return false;
     }
@@ -34,21 +45,13 @@ class ErrorLogger {
 const ErrorHandler = async (err, req, res, next) => {
   const errorLogger = new ErrorLogger();
 
-  process.on('uncaughtException', (reason, promise) => {
-    console.log(reason, 'UNHANDLED');
-    throw reason; // need to take care
-  });
-
-  process.on('uncaughtException', (error) => {
-    errorLogger.logError(error);
-    if (errorLogger.isTrustError(err)) {
-      //process exist // need restart
+  process.on('uncaughtException', (err) => {
+    errorLogger.logError('uncaughtException: ', err);
+    if (!errorLogger.isTrustError(err)) {
+      process.exit(1);
     }
   });
 
-  // console.log(err.description, '-------> DESCRIPTION')
-  // console.log(err.message, '-------> MESSAGE')
-  // console.log(err.name, '-------> NAME')
   if (err) {
     await errorLogger.logError(err);
     if (errorLogger.isTrustError(err)) {
@@ -56,9 +59,9 @@ const ErrorHandler = async (err, req, res, next) => {
         const errorDescription = err.errorStack;
         return res.status(err.statusCode).json({ message: errorDescription });
       }
-      return res.status(err.statusCode).json({ message: err.message });
-    } else {
-      //process exit // terriablly wrong with flow need restart
+      return res
+        .status(err.statusCode)
+        .json({ message: err.name || 'Something went wrong' });
     }
     return res.status(err.statusCode).json({ message: err.message });
   }

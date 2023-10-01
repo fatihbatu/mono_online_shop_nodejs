@@ -3,6 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const {
   APIError,
   BadRequestError,
+  ValidationError,
   STATUS_CODES,
 } = require('../../utils/app-errors');
 
@@ -15,14 +16,13 @@ class ShoppingRepository {
         'items.products'
       );
       return orders;
-    } catch (error) {
+    } catch (err) {
       throw new APIError('Unable to Find Orders');
     }
   }
 
   async CreateNewOrder(customerId, txnId) {
     //check transaction for payment Status
-
     try {
       const profile = await CustomerModel.findById(customerId).populate(
         'cart.product'
@@ -30,9 +30,9 @@ class ShoppingRepository {
 
       if (!profile) {
         throw new APIError(
-          'NOT FOUND',
-          STATUS_CODES.NOT_FOUND,
-          'Customer not found'
+          'API ERROR',
+          STATUS_CODES.BAD_REQUEST,
+          'Unable to find customer'
         );
       }
 
@@ -68,10 +68,10 @@ class ShoppingRepository {
       await profile.save();
 
       return orderResult;
-    } catch (error) {
+    } catch (err) {
       throw new APIError(
         'API ERROR',
-        STATUS_CODES.INTERNAL_SERVER_ERROR,
+        STATUS_CODES.BAD_REQUEST,
         'Unable to create order'
       );
     }

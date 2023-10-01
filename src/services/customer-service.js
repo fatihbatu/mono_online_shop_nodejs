@@ -1,5 +1,17 @@
-const { ValidatePassword, FormateData } = require('../utils');
-const { APIError } = require('../utils/app-errors');
+const {
+  ValidatePassword,
+  FormateData,
+  GenerateSalt,
+  GeneratePassword,
+  GenerateSignature,
+} = require('../utils');
+const {
+  APIError,
+  ValidationError,
+  STATUS_CODES,
+  BadRequestError,
+  AppError,
+} = require('../utils/app-errors');
 const { CustomerRepository } = require('../database');
 
 class CustomerService {
@@ -15,8 +27,9 @@ class CustomerService {
 
       // If the customer doesn't exist or the password is invalid, return formatted null data
       if (!existingCustomer) {
-        throw new APIError(
+        throw new BadRequestError(
           'Customer Not Found',
+          undefined,
           'The provided email does not match any account.'
         );
       }
@@ -30,6 +43,7 @@ class CustomerService {
       if (!validPassword) {
         throw new APIError(
           'Invalid Password',
+          undefined,
           'The provided password is incorrect.'
         );
       }
@@ -41,10 +55,11 @@ class CustomerService {
 
       return FormateData({ id: existingCustomer._id, token });
     } catch (err) {
-      // Handle generic error. You might want to ensure that you don't expose sensitive details in the error message.
       throw new APIError(
-        'Data Not Found',
-        err.message || 'An error occurred during sign in.'
+        err.name || 'Data Not Found',
+        err.statusCode || undefined,
+        err.message || 'An error occurred during creating product.',
+        err.isOperational || false
       );
     }
   }
@@ -55,33 +70,33 @@ class CustomerService {
       const existingCustomer = await this.repository.FindCustomer({ email });
 
       if (existingCustomer) {
-        throw new APIError(
-          'Customer Already Exists',
-          'The provided email is already in use.'
-        );
+        throw new ValidationError('The provided email already exists.');
       }
+      if (!existingCustomer) {
+        const salt = await GenerateSalt();
 
-      const salt = await GenerateSalt();
+        const hashedPassword = await GeneratePassword(password, salt);
 
-      const hashedPassword = await HashPassword(password, salt);
+        const newCustomer = await this.repository.CreateCustomer({
+          email,
+          password: hashedPassword,
+          phone,
+          salt,
+        });
 
-      const newCustomer = await this.repository.CreateCustomer({
-        email,
-        password: hashedPassword,
-        phone,
-        salt,
-      });
+        const token = await GenerateSignature({
+          email: newCustomer.email,
+          _id: newCustomer._id,
+        });
 
-      const token = await GenerateSignature({
-        email: newCustomer.email,
-        _id: newCustomer._id,
-      });
-
-      return FormateData({ id: newCustomer._id, token });
-    } catch (error) {
+        return FormateData({ id: newCustomer._id, token });
+      }
+    } catch (err) {
       throw new APIError(
-        'Data Not Found',
-        err.message || 'An error occurred during sign up.'
+        err.name || 'Data Not Found',
+        err.statusCode || undefined,
+        err.message || 'An error occurred during creating product.',
+        err.isOperational || false
       );
     }
   }
@@ -97,40 +112,47 @@ class CustomerService {
         country,
       });
       return FormateData(addressResult);
-    } catch (error) {
+    } catch (err) {
       throw new APIError(
-        'Data Not Found',
-        err.message || 'An error occurred during adding new address.'
+        err.name || 'Data Not Found',
+        err.statusCode || undefined,
+        err.message || 'An error occurred during creating product.',
+        err.isOperational || false
       );
     }
   }
 
   async GetProfile(id) {
     try {
-      const existingCustomer = await this.repository.FindCustomerById({ id });
+      const existingCustomer = await this.repository.FindCustomerById(id);
       return FormateData(existingCustomer);
-    } catch (error) {
+    } catch (err) {
       throw new APIError(
-        'Data Not Found',
-        err.message || 'An error occurred during getting profile.'
+        err.name || 'Data Not Found',
+        err.statusCode || undefined,
+        err.message || 'An error occurred during creating product.',
+        err.isOperational || false
       );
     }
   }
 
   async GetShopingDetails(id) {
     try {
-      const existingCustomer = await this.repository.FindCustomerById({ id });
+      const existingCustomer = await this.repository.FindCustomerById(id);
       if (!existingCustomer) {
         throw new APIError(
           'Customer Not Found',
+          undefined,
           'The provided email does not match any account.'
         );
       }
       return FormateData(existingCustomer);
-    } catch (error) {
+    } catch (err) {
       throw new APIError(
-        'Data Not Found',
-        err.message || 'An error occurred during getting shoping details.'
+        err.name || 'Data Not Found',
+        err.statusCode || undefined,
+        err.message || 'An error occurred during creating product.',
+        err.isOperational || false
       );
     }
   }
@@ -139,10 +161,12 @@ class CustomerService {
     try {
       const wishListıtems = await this.repository.Wishlist(customerId);
       return FormateData(wishListıtems);
-    } catch (error) {
+    } catch (err) {
       throw new APIError(
-        'Data Not Found',
-        err.message || 'An error occurred during getting wishlist.'
+        err.name || 'Data Not Found',
+        err.statusCode || undefined,
+        err.message || 'An error occurred during creating product.',
+        err.isOperational || false
       );
     }
   }
@@ -154,11 +178,33 @@ class CustomerService {
         product
       );
       return FormateData(wishlistResult);
-    } catch (error) {
+    } catch (err) {
       throw new APIError(
-        'Data Not Found',
-        err.message || 'An error occurred during adding to wishlist.'
+        err.name || 'Data Not Found',
+        err.statusCode || undefined,
+        err.message || 'An error occurred during creating product.',
+        err.isOperational || false
       );
+    }
+  }
+
+  async RemoveFromWishlist(customerId, productId) {
+    try {
+      const wishlistResult = await this.repository.RemoveWishlistItem(
+        customerId,
+        productId
+      );
+      return wishlistResult;
+    } catch (err) {
+      if (err instanceof AppError) {
+        throw err;
+      } else {
+        throw new APIError(
+          'API Error',
+          STATUS_CODES.INTERNAL_ERROR,
+          'Unable to Remove Item'
+        );
+      }
     }
   }
 
@@ -171,10 +217,12 @@ class CustomerService {
         isRemove
       );
       return FormateData(cartResult);
-    } catch (error) {
+    } catch (err) {
       throw new APIError(
-        'Data Not Found',
-        err.message || 'An error occurred during managing cart.'
+        err.name || 'Data Not Found',
+        err.statusCode || undefined,
+        err.message || 'An error occurred during creating product.',
+        err.isOperational || false
       );
     }
   }
@@ -186,10 +234,12 @@ class CustomerService {
         order
       );
       return FormateData(orderResult);
-    } catch (error) {
+    } catch (err) {
       throw new APIError(
-        'Data Not Found',
-        err.message || 'An error occurred during managing order.'
+        err.name || 'Data Not Found',
+        err.statusCode || undefined,
+        err.message || 'An error occurred during creating product.',
+        err.isOperational || false
       );
     }
   }

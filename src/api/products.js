@@ -1,6 +1,7 @@
 const ProductService = require('../services/product-service');
 const CustomerService = require('../services/customer-service');
 const UserAuth = require('./middlewares/auth');
+const { BadRequestError, ValidationError } = require('../utils/app-errors');
 
 module.exports = (app) => {
   const service = new ProductService();
@@ -21,19 +22,18 @@ module.exports = (app) => {
         banner,
       });
       return res.status(200).json(data);
-    } catch (error) {
-      next(error);
+    } catch (err) {
+      next(err);
     }
   });
 
   app.get('/:id', async (req, res, next) => {
     const productId = req.params.id;
-
     try {
       const { data } = await service.GetProductDescription(productId);
       return res.status(200).json(data);
-    } catch (error) {
-      next(error);
+    } catch (err) {
+      next(err);
     }
   });
 
@@ -42,33 +42,51 @@ module.exports = (app) => {
       const { ids } = req.body;
       const products = await service.GetSelectedProducts(ids);
       return res.status(200).json(products);
-    } catch (error) {
-      next(error);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.get('/category/:category', async (req, res, next) => {
+    const category = req.params.category;
+
+    try {
+      const { data } = await service.GetProductsByCategory(category);
+      return res.status(200).json(data);
+    } catch (err) {
+      next(err);
     }
   });
 
   app.put('/wishlist', UserAuth, async (req, res, next) => {
     const { _id } = req.user;
-
     try {
+      if (!req.body._id.match(/^[0-9a-fA-F]{24}$/)) {
+        throw new ValidationError('Invalid Product Id');
+      }
       const product = await service.GetProductById(req.body._id);
       const wishlist = await customerService.AddToWishlist(_id, product);
       return res.status(200).json(wishlist);
-    } catch (error) {
-      next(error);
+    } catch (err) {
+      next(err);
     }
   });
 
-  app.delete('/wishlist', UserAuth, async (req, res, next) => {
+  app.delete('/wishlist/:id', UserAuth, async (req, res, next) => {
     const { _id } = req.user;
     const productId = req.params.id;
-
     try {
+      if (!productId || !productId.match(/^[0-9a-fA-F]{24}$/)) {
+        throw new ValidationError('Invalid Product Id');
+      }
       const product = await service.GetProductById(productId);
-      const wishlist = await customerService.AddToWishlist(_id, product);
+      if (!product) {
+        throw new BadRequestError('Product not found');
+      }
+      const wishlist = await customerService.RemoveFromWishlist(_id, productId);
       return res.status(200).json(wishlist);
-    } catch (error) {
-      next(error);
+    } catch (err) {
+      next(err);
     }
   });
 
@@ -77,14 +95,17 @@ module.exports = (app) => {
 
     try {
       const product = await service.GetProductById(_id);
+      if (!product) {
+        throw new BadRequestError('Product not found', 400);
+      }
       const result = await customerService.ManageCart(
         req.user._id,
         product,
         qty,
         false
       );
-      return res.ststus(200).json(result);
-    } catch (error) {
+      return res.status(200).json(result);
+    } catch (err) {
       next(err);
     }
   });
@@ -96,8 +117,8 @@ module.exports = (app) => {
       const product = await service.GetProductById(req.params.id);
       const result = await customerService.ManageCart(_id, product, 0, true);
       return res.status(200).json(result);
-    } catch (error) {
-      next(error);
+    } catch (err) {
+      next(err);
     }
   });
 
@@ -105,8 +126,8 @@ module.exports = (app) => {
     try {
       const { data } = await service.GetProducts();
       return res.status(200).json(data);
-    } catch (error) {
-      next(error);
+    } catch (err) {
+      next(err);
     }
   });
 };

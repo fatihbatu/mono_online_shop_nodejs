@@ -8,9 +8,9 @@ module.exports = async () => {
       useUnifiedTopology: true,
       // useCreateIndex: true,
     });
-  } catch (error) {
+  } catch (err) {
     console.log('====================================');
-    console.log('Error connecting to database: ', error.message);
+    console.log('Error connecting to database: ', err.message);
     console.log('====================================');
     process.exit(1);
   }

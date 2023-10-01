@@ -13,10 +13,12 @@ class ShoppingService {
 
     try {
       const orderResult = await this.repository.CreateNewOrder(_id, txnNumber);
-    } catch (error) {
+    } catch (err) {
       throw new APIError(
-        'Data Not Found',
-        err.message || 'An error occurred during placing order.'
+        err.name || 'Data Not Found',
+        err.statusCode || undefined,
+        err.message || 'An error occurred during creating product.',
+        err.isOperational || false
       );
     }
   }
@@ -25,10 +27,12 @@ class ShoppingService {
     try {
       const orders = await this.repository.Orders(customerId);
       return FormateData(orders);
-    } catch (error) {
+    } catch (err) {
       throw new APIError(
-        'Data Not Found',
-        err.message || 'An error occurred during getting orders.'
+        err.name || 'Data Not Found',
+        err.statusCode || undefined,
+        err.message || 'An error occurred during creating product.',
+        err.isOperational || false
       );
     }
   }
